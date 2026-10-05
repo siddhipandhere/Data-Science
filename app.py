@@ -21,7 +21,9 @@ from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
-st.set_page_config(page_title="Term Deposit Predictor", page_icon="🏦", layout="wide")
+from theme import footer, inject, kpis, masthead, show, steps_list, verdict
+
+st.set_page_config(page_title="Term Deposit Predictor", page_icon="◼", layout="wide")
 
 YES = "#1F7A5C"
 NO = "#8A989A"
@@ -115,50 +117,42 @@ metrics = art["metrics"]
 # ----------------------------------------------------------------------------
 # Sidebar
 # ----------------------------------------------------------------------------
-st.sidebar.title("🏦 Term Deposit Predictor")
-page = st.sidebar.radio(
-    "Go to", ["Home", "Explore the data", "Model performance", "Predict a customer"]
+inject()
+masthead()
+page = st.radio(
+    "Go to", ["Home", "Explore the data", "Model performance", "Predict a customer"],
+    horizontal=True, label_visibility="collapsed",
 )
-st.sidebar.markdown("---")
-st.sidebar.caption(
-    "Data Science Mini Project  \nSiddhi Pandhere  \nPillai College of Engineering, New Panvel"
-)
-st.sidebar.caption("Data: [UCI Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank+marketing)")
 
 # ----------------------------------------------------------------------------
 # Home
 # ----------------------------------------------------------------------------
 if page == "Home":
-    st.title("Which bank customers will say yes to a term deposit?")
+    st.title("Predicting who opens a term deposit, before the phone rings")
     st.write(
-        "A Portuguese bank phoned **41,188** customers to sell a fixed-term deposit, and only "
-        "about 1 in 9 subscribed. This app combines **AdaBoost**, **Gradient Boosting** and "
-        "**XGBoost** into a soft-voting ensemble that predicts subscription *before* the call is made."
+        "A Portuguese bank phoned **41,188** customers to sell a fixed-term deposit and only about "
+        "1 in 9 said yes. This project trains three boosted-tree models, combines them by soft "
+        "voting, and scores each customer using only what was known before the call."
     )
     yes_rate = (df["y"] == "yes").mean()
     e = metrics.loc["Ensemble"]
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Calls analysed", f"{len(df):,}")
-    c2.metric("Subscribed", f"{yes_rate:.1%}")
-    c3.metric("Ensemble recall (yes)", f"{e['Recall (yes)']:.2f}",
-              f"{e['Recall (yes)'] - metrics.loc['AdaBoost', 'Recall (yes)']:+.2f} vs AdaBoost")
-    c4.metric("Ensemble ROC-AUC", f"{e['ROC-AUC']:.3f}")
+    lift = (e["Precision (yes)"]) / yes_rate
+    kpis([
+        ("Calls analysed", f"{len(df):,}", ""),
+        ("Said yes", f"{yes_rate:.1%}", ""),
+        ("Ensemble recall", f"{e['Recall (yes)']:.2f}", f"AdaBoost: {metrics.loc['AdaBoost', 'Recall (yes)']:.2f}"),
+        ("Ensemble ROC-AUC", f"{e['ROC-AUC']:.3f}", f"{lift:.1f}× better than random calling"),
+    ])
 
-    st.subheader("How the model is built")
-    steps = [
+    st.subheader("Pipeline")
+    steps_list([
         ("Load", "41,188 rows × 21 columns from the UCI archive."),
         ("Remove leakage", "Drop `duration`: call length is only known after the call ends."),
-        ("Encode", "One-hot encode categorical columns → 62 features. Trees need no scaling."),
-        ("Split", f"Stratified 80/20: {art['n_train']:,} train rows, {art['n_test']:,} test rows."),
-        ("Tune three boosters", "GridSearchCV (3-fold, ROC-AUC). XGBoost also gets `scale_pos_weight` for imbalance."),
+        ("Encode", "One-hot encode categorical columns into 62 features. Trees need no scaling."),
+        ("Split", f"Stratified 80/20: {art['n_train']:,} training rows, {art['n_test']:,} test rows."),
+        ("Tune", "GridSearchCV (3-fold, ROC-AUC) for each booster. XGBoost also gets `scale_pos_weight` for the imbalance."),
         ("Soft vote", "Average the three models' predicted probabilities."),
-    ]
-    cols = st.columns(3)
-    for i, (t, d) in enumerate(steps):
-        with cols[i % 3]:
-            st.markdown(f"**Step {i + 1} · {t}**  \n{d}")
-
-    st.info("Use the sidebar to explore the data, compare the models, or score your own customer.")
+    ])
 
 # ----------------------------------------------------------------------------
 # Explore
@@ -172,7 +166,7 @@ elif page == "Explore the data":
                      color=counts.index, color_discrete_map={"yes": YES, "no": NO})
         fig.update_layout(title="Target: subscribed?", showlegend=True, height=340,
                           margin=dict(t=50, b=10, l=10, r=10))
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
     with c2:
         st.markdown(
             f"Only **{counts['yes']:,}** of **{len(df):,}** calls ended in a subscription "
@@ -193,17 +187,17 @@ elif page == "Explore the data":
     fig.add_hline(y=(df["y"] == "yes").mean(), line_dash="dash", line_color=BRASS,
                   annotation_text="overall rate", annotation_position="top right")
     fig.update_layout(yaxis_tickformat=".0%", yaxis_title="subscription rate", height=420)
-    st.plotly_chart(fig, use_container_width=True)
+    show(fig)
 
     st.subheader("Numeric features by outcome")
     num_cols = ["age", "campaign", "euribor3m", "nr.employed", "emp.var.rate", "cons.conf.idx", "cons.price.idx"]
     ncol = st.selectbox("Choose a numeric feature", num_cols, index=num_cols.index("euribor3m"))
     fig = px.box(df, x="y", y=ncol, color="y", color_discrete_map={"yes": YES, "no": NO})
     fig.update_layout(showlegend=False, height=420, xaxis_title="subscribed")
-    st.plotly_chart(fig, use_container_width=True)
+    show(fig)
 
     with st.expander("Preview raw data"):
-        st.dataframe(df.head(100), use_container_width=True)
+        st.dataframe(df.head(100), width="stretch")
 
 # ----------------------------------------------------------------------------
 # Performance
@@ -212,8 +206,8 @@ elif page == "Model performance":
     st.title("Model performance")
     st.caption(f"Held-out test set of {art['n_test']:,} customers.")
     st.dataframe(
-        metrics.style.format("{:.4f}").highlight_max(axis=0, color="#D6EDE3"),
-        use_container_width=True,
+        metrics.style.format("{:.4f}").highlight_max(axis=0, color="#E7DFC9"),
+        width="stretch",
     )
 
     c1, c2 = st.columns(2)
@@ -223,7 +217,7 @@ elif page == "Model performance":
         fig = px.bar(m, x="Model", y="value", color="variable", barmode="group",
                      color_discrete_sequence=[NO, YES, BRASS])
         fig.update_layout(yaxis_range=[0, 1], legend_title="", height=400, yaxis_title="")
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
     with c2:
         st.subheader("ROC curves")
         fig = go.Figure()
@@ -234,7 +228,7 @@ elif page == "Model performance":
                                      line=dict(color=colors[name], width=3 if name == "Ensemble" else 1.5)))
         fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], line=dict(dash="dash", color="gray"), showlegend=False))
         fig.update_layout(xaxis_title="False positive rate", yaxis_title="True positive rate", height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
 
     st.subheader("Confusion matrix")
     c1, c2 = st.columns([1, 1])
@@ -246,9 +240,9 @@ elif page == "Model performance":
     cm = confusion_matrix(art["y_test"], pred)
     with c2:
         fig = px.imshow(cm, text_auto=True, x=["pred no", "pred yes"], y=["actual no", "actual yes"],
-                        color_continuous_scale=["#EEF2F1", TEAL])
+                        color_continuous_scale=["#F1ECDF", TEAL])
         fig.update_layout(height=320, coloraxis_showscale=False, margin=dict(t=10))
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
     tn, fp, fn, tp = cm.ravel()
     flagged = tp + fp
     with c1:
@@ -262,7 +256,7 @@ elif page == "Model performance":
     top = art["importances"].head(15).sort_values()
     fig = px.bar(x=top.values, y=top.index, orientation="h", color_discrete_sequence=[TEAL])
     fig.update_layout(height=520, xaxis_title="importance", yaxis_title="")
-    st.plotly_chart(fig, use_container_width=True)
+    show(fig)
     st.caption("Economic indicators (`nr.employed`, `emp.var.rate`, `euribor3m`) dominate, followed by "
                "previous-campaign outcome and contact month.")
 
@@ -335,12 +329,8 @@ else:
                    "threshold": {"line": {"color": "black", "width": 3}, "value": 50}},
         ))
         fig.update_layout(height=300, margin=dict(t=60, b=10))
-        st.plotly_chart(fig, use_container_width=True)
-        if p >= 0.5:
-            st.success(f"**Will subscribe** · {p:.1%} probability. Worth calling.")
-        else:
-            st.warning(f"**Will not subscribe** · {p:.1%} probability "
-                       f"({p / (df['y'] == 'yes').mean():.1f}× the 11.3% base rate).")
+        show(fig)
+        verdict(p, (df['y'] == 'yes').mean())
     with c2:
         st.markdown("**What each model says**")
         pb = pd.DataFrame({"Model": list(probs), "Probability": list(probs.values())})
@@ -350,6 +340,8 @@ else:
                                                          "XGBoost": BRASS, "Ensemble": YES})
         fig.add_vline(x=0.5, line_dash="dash")
         fig.update_layout(xaxis_range=[0, 1], xaxis_tickformat=".0%", showlegend=False, height=300)
-        st.plotly_chart(fig, use_container_width=True)
+        show(fig)
         st.caption("AdaBoost and Gradient Boosting were trained without class weighting, so they "
                    "give lower probabilities than XGBoost. The ensemble averages all three.")
+
+footer()
