@@ -1,6 +1,6 @@
 """
 Bank Term-Deposit Predictor — Streamlit app
-Data Science Mini Project · Siddhi Pandhere, Pillai College of Engineering
+Data Science Mini Project  
 
 Ensemble of AdaBoost + Gradient Boosting + XGBoost (soft voting) trained on
 the UCI Bank Marketing dataset (bank-additional-full.csv).
